@@ -177,9 +177,13 @@ def _parse_header(header_line: str, aliases: dict) -> tuple[list[dict], dict, in
         elif ':i+' in part:
              key = part.split(":")[0]
              type_hint = TYPE_AUTO_INCREMENT
+        elif '!' in part:
+             key, enum_str = part.split("!", 1)
+             const_val = enum_str
+             type_hint = 'indexed_enum'
         elif '=' in part:
              key, enum_str = part.split("=", 1)
-             const_val = enum_str # Abuse var for enum options
+             const_val = enum_str
              type_hint = 'enum'
         elif ':' in part:
              key, type_hint = part.split(":")
@@ -212,11 +216,13 @@ def _parse_header(header_line: str, aliases: dict) -> tuple[list[dict], dict, in
                              constants[key] = const_val
         else:
             if type_hint == TYPE_AUTO_INCREMENT:
-                columns.append({"key": key, "type": TYPE_AUTO_INCREMENT, "enum": None})
+                columns.append({"key": key, "type": TYPE_AUTO_INCREMENT, "enum": None, "indexed": False})
+            elif type_hint == 'indexed_enum':
+                columns.append({"key": key, "type": TYPE_STRING, "enum": const_val.split('|'), "indexed": True})
             elif type_hint == 'enum':
-                columns.append({"key": key, "type": TYPE_STRING, "enum": const_val.split('|')})
+                columns.append({"key": key, "type": TYPE_STRING, "enum": const_val.split('|'), "indexed": False})
             else:
-                columns.append({"key": key, "type": type_hint, "enum": None})
+                columns.append({"key": key, "type": type_hint, "enum": None, "indexed": False})
 
     return columns, constants, explicit_rows
 
@@ -247,7 +253,14 @@ def _decode_tabular(lines: list[str], aliases: dict) -> list[dict]:
                 if token == MARKER_NULL:
                     flat_row[key] = None
                 elif col["enum"]:
-                    flat_row[key] = _decode_string(token)
+                    if col.get("indexed"):
+                        try:
+                            idx = int(token)
+                            flat_row[key] = _decode_string(col["enum"][idx]) if idx < len(col["enum"]) else token
+                        except ValueError:
+                            flat_row[key] = _decode_string(token)
+                    else:
+                        flat_row[key] = _decode_string(token)
                 elif col["type"] == TYPE_BOOLEAN:
                     flat_row[key] = token == '1'
                 elif col["type"] in (TYPE_INTEGER, TYPE_NUMBER):

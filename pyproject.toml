@@ -1,6 +1,6 @@
 [project]
 name = "zoon-format"
-version = "1.0.0"
+version = "1.0.1"
 description = "ZOON - Zero Overhead Object Notation for LLM context optimization"
 readme = "README.md"
 license = { text = "MIT" }

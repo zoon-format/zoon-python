@@ -50,16 +50,20 @@ def _is_auto_increment(values: list[Any]) -> bool:
         return False
 
 
-def _detect_enum(values: list[Any]) -> list[str] | None:
+def _detect_enum(values: list[Any], row_count: int) -> tuple[list[str] | None, bool]:
     if not values:
-        return None
+        return None, False
     str_values = [str(v) for v in values if v is not None]
     if len(str_values) < 2:
-        return None
-    unique = list(dict.fromkeys(str_values))
+        return None, False
+    unique = sorted(list(dict.fromkeys(str_values)))
     if len(unique) <= len(str_values) // 2 and len(unique) <= 10:
-        return unique
-    return None
+        avg_len = sum(len(o) for o in unique) / len(unique)
+        literal_cost = avg_len * row_count
+        index_cost = len("|".join(unique)) + row_count * 2
+        use_indexed = len(unique) >= 3 and literal_cost > index_cost
+        return unique, use_indexed
+    return None, False
 
 
 def _encode_string(value: str) -> str:
@@ -236,8 +240,8 @@ def _encode_tabular(data: list[dict]) -> str:
         if base_type == TYPE_INTEGER and _is_auto_increment(values):
             column_info[key] = {"type": TYPE_AUTO_INCREMENT, "enum": None}
         elif base_type == TYPE_STRING:
-            enum_values = _detect_enum(values)
-            column_info[key] = {"type": TYPE_STRING, "enum": enum_values}
+            enum_values, indexed = _detect_enum(values, len(flattened_data))
+            column_info[key] = {"type": TYPE_STRING, "enum": enum_values, "indexed": indexed}
         else:
             column_info[key] = {"type": base_type, "enum": None}
 
@@ -275,8 +279,9 @@ def _encode_tabular(data: list[dict]) -> str:
         if info["type"] == TYPE_AUTO_INCREMENT:
             header_parts.append(f"{aliased}:{TYPE_AUTO_INCREMENT}")
         elif info["enum"]:
+            separator = "!" if info.get("indexed") else "="
             enum_str = "|".join(info["enum"])
-            header_parts.append(f"{aliased}={enum_str}")
+            header_parts.append(f"{aliased}{separator}{enum_str}")
         else:
             header_parts.append(f"{aliased}:{info['type']}")
 
@@ -304,7 +309,11 @@ def _encode_tabular(data: list[dict]) -> str:
             if value is None:
                 row_parts.append(MARKER_NULL)
             elif info["enum"]:
-                row_parts.append(_encode_value(value))
+                if info.get("indexed"):
+                    idx = info["enum"].index(str(value)) if str(value) in info["enum"] else -1
+                    row_parts.append(str(idx) if idx >= 0 else _encode_value(value))
+                else:
+                    row_parts.append(_encode_value(value))
             elif info["type"] == TYPE_BOOLEAN:
                 row_parts.append(BOOL_TRUE if value else BOOL_FALSE)
             elif info["type"] in (TYPE_INTEGER, TYPE_NUMBER):
