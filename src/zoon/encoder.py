@@ -1,7 +1,7 @@
 from typing import Any
 from collections import Counter
 from .types import (
-    TYPE_STRING, TYPE_INTEGER, TYPE_NUMBER, TYPE_BOOLEAN, TYPE_AUTO_INCREMENT,
+    TYPE_STRING, TYPE_TEXT, TYPE_INTEGER, TYPE_NUMBER, TYPE_BOOLEAN, TYPE_AUTO_INCREMENT,
     MARKER_NULL,
     BOOL_TRUE, BOOL_FALSE, INLINE_BOOL_TRUE, INLINE_BOOL_FALSE
 )
@@ -241,7 +241,14 @@ def _encode_tabular(data: list[dict]) -> str:
             column_info[key] = {"type": TYPE_AUTO_INCREMENT, "enum": None}
         elif base_type == TYPE_STRING:
             enum_values, indexed = _detect_enum(values, len(flattened_data))
-            column_info[key] = {"type": TYPE_STRING, "enum": enum_values, "indexed": indexed}
+            if enum_values:
+                column_info[key] = {"type": TYPE_STRING, "enum": enum_values, "indexed": indexed}
+            else:
+                avg_len = sum(len(str(v)) for v in values if v is not None) / max(1, len([v for v in values if v is not None]))
+                if avg_len > 30:
+                    column_info[key] = {"type": TYPE_TEXT, "enum": None}
+                else:
+                    column_info[key] = {"type": TYPE_STRING, "enum": None}
         else:
             column_info[key] = {"type": base_type, "enum": None}
 
@@ -318,9 +325,10 @@ def _encode_tabular(data: list[dict]) -> str:
                 row_parts.append(BOOL_TRUE if value else BOOL_FALSE)
             elif info["type"] in (TYPE_INTEGER, TYPE_NUMBER):
                 row_parts.append(str(value))
-            elif isinstance(value, list): # Array type
-                 # Revert inline escaping for array items? _encode_simple_list does it.
+            elif isinstance(value, list):
                  row_parts.append(_encode_simple_list(value))
+            elif info["type"] == TYPE_TEXT:
+                row_parts.append('"' + str(value).replace('"', '\\"') + '"')
             else:
                 row_parts.append(_encode_value(value))
         

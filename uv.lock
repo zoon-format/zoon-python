@@ -436,7 +436,7 @@ wheels = [
 
 [[package]]
 name = "zoon-format"
-version = "1.0.1"
+version = "1.0.3"
 source = { editable = "." }
 
 [package.dev-dependencies]

@@ -4,6 +4,7 @@ ZoonValue: TypeAlias = str | int | float | bool | None | list | dict
 ZoonData: TypeAlias = list[dict[str, ZoonValue]] | dict[str, ZoonValue]
 
 TYPE_STRING = "s"
+TYPE_TEXT = "t"
 TYPE_INTEGER = "i"
 TYPE_NUMBER = "n"
 TYPE_BOOLEAN = "b"

@@ -113,6 +113,41 @@ def _decode_simple_list(zoon_string: str) -> list:
     return [_decode_value(item.strip()) for item in items]
 
 
+def _tokenize_row(line: str) -> list[str]:
+    tokens = []
+    i = 0
+    while i < len(line):
+        while i < len(line) and line[i] == ' ':
+            i += 1
+        if i >= len(line):
+            break
+        if line[i] == '"':
+            end = i + 1
+            while end < len(line):
+                if line[end] == '\\' and end + 1 < len(line):
+                    end += 2
+                elif line[end] == '"':
+                    end += 1
+                    break
+                else:
+                    end += 1
+            tokens.append(line[i+1:end-1])
+            i = end
+        elif line[i] == '[':
+            end = i + 1
+            while end < len(line) and line[end] != ']':
+                end += 1
+            tokens.append(line[i:end+1])
+            i = end + 1
+        else:
+            end = i
+            while end < len(line) and line[end] != ' ':
+                end += 1
+            tokens.append(line[i:end])
+            i = end
+    return tokens
+
+
 def _decode_inline(zoon_string: str) -> dict:
     result = {}
     pattern = r'(\w+)(?:[:=])(?:\{([^}]*)\}|([^\s]+))'
@@ -287,7 +322,7 @@ def _decode_tabular(lines: list[str], aliases: dict) -> list[dict]:
             line = line.strip()
             if not line:
                 continue
-            tokens = line.split()
+            tokens = _tokenize_row(line)
             data.append(process_row(tokens))
             
     return data
